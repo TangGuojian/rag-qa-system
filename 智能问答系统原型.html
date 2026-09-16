@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能问答系统 - 原型</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --primary: #1677ff;
+  --primary-light: #e6f4ff;
+  --primary-border: #91caff;
+  --text: #1f1f1f;
+  --text-secondary: #666;
+  --bg: #f5f5f5;
+  --white: #fff;
+  --sidebar-bg: #001529;
+  --sidebar-text: #ffffffa6;
+  --sidebar-active: #1677ff;
+  --border: #e8e8e8;
+  --success: #52c41a;
+  --warning: #faad14;
+  --danger: #ff4d4f;
+  --radius: 8px;
+  --shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--text); background: var(--bg); }
+a { color: var(--primary); text-decoration: none; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+/* Layout */
+.app-container { display: flex; height: 100vh; }
+.sidebar { width: 220px; background: var(--sidebar-bg); color: #fff; display: flex; flex-direction: column; flex-shrink: 0; }
+.logo { padding: 20px 16px; font-size: 18px; font-weight: 700; border-bottom: 1px solid #ffffff1a; display: flex; align-items: center; gap: 10px; }
+.logo-icon { width: 32px; height: 32px; background: var(--primary); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.nav { flex: 1; padding: 8px 0; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 20px; color: var(--sidebar-text); cursor: pointer; transition: all .2s; font-size: 14px; border-left: 3px solid transparent; }
+.nav-item:hover { color: #fff; background: #ffffff0d; }
+.nav-item.active { color: #fff; background: #1677ff1a; border-left-color: var(--primary); }
+.nav-item .icon { width: 18px; text-align: center; font-size: 16px; }
+.user-info { padding: 16px 20px; border-top: 1px solid #ffffff1a; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 14px; }
+
+/* Main */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.header { height: 56px; background: var(--white); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; flex-shrink: 0; }
+.header h2 { font-size: 16px; font-weight: 600; }
+.header-actions { display: flex; align-items: center; gap: 16px; font-size: 13px; color: var(--text-secondary); }
+.content { flex: 1; padding: 20px; overflow-y: auto; }
+
+/* Pages */
+.page { display: none; }
+.page.active { display: block; }
+
+/* Cards */
+.card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; }
+.card-header { font-size: 15px; font-weight: 600; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+
+/* Grid */
+.row { display: flex; gap: 16px; flex-wrap: wrap; }
+.col-3 { flex: 1; min-width: 200px; }
+.col-4 { flex: 1; min-width: 260px; }
+.col-6 { flex: 1; min-width: 300px; }
+.col-8 { flex: 2; min-width: 300px; }
+.col-12 { width: 100%; }
+
+/* Stat cards */
+.stat-card { background: var(--white); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; text-align: center; }
+.stat-card .num { font-size: 28px; font-weight: 700; color: var(--primary); }
+.stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.stat-card .trend { font-size: 12px; margin-top: 4px; }
+.stat-card .trend.up { color: var(--success); }
+.stat-card .trend.down { color: var(--danger); }
+
+/* Table */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: #fafafa; font-weight: 600; color: var(--text-secondary); }
+tr:hover { background: #fafafa; }
+
+/* Badge */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+.badge-success { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+.badge-processing { background: #e6f4ff; color: #1677ff; border: 1px solid #91caff; }
+.badge-error { background: #fff2f0; color: #ff4d4f; border: 1px solid #ffccc7; }
+.badge-default { background: #fafafa; color: #666; border: 1px solid #d9d9d9; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: 13px; background: var(--white); color: var(--text); transition: all .2s; }
+.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.btn-primary:hover { background: #4096ff; }
+.btn-danger { color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: #fff2f0; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* Form */
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
+.form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; transition: border .2s; }
+.form-control:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-light); }
+select.form-control { appearance: auto; }
+
+/* Chat */
+.chat-container { display: flex; flex-direction: column; height: 500px; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.chat-msg { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+.chat-msg.user { align-self: flex-end; background: var(--primary); color: #fff; border-bottom-right-radius: 4px; }
+.chat-msg.bot { align-self: flex-start; background: #f0f0f0; color: var(--text); border-bottom-left-radius: 4px; }
+.chat-msg .source { font-size: 12px; color: var(--text-secondary); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.chat-msg .source a { color: var(--primary); }
+.chat-msg .feedback { margin-top: 8px; display: flex; gap: 8px; }
+.chat-msg .feedback button { border: none; background: none; cursor: pointer; color: var(--text-secondary); font-size: 13px; padding: 2px 6px; border-radius: 4px; }
+.chat-msg .feedback button:hover { background: var(--border); }
+.chat-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--border); background: var(--white); }
+.chat-input input { flex: 1; }
+.kb-selector { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.kb-tag { padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border); font-size: 12px; cursor: pointer; transition: all .2s; }
+.kb-tag.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* Graph canvas */
+.graph-canvas { width: 100%; height: 400px; border: 1px solid var(--border); border-radius: var(--radius); background: #fafafa; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tab { padding: 10px 20px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; color: var(--text-secondary); transition: all .2s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* Search bar */
+.search-bar { display: flex; gap: 8px; margin-bottom: 16px; }
+.search-bar .form-control { max-width: 300px; }
+
+/* Config grid */
+.config-group { margin-bottom: 20px; }
+.config-group-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.config-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.config-row .form-group { flex: 1; min-width: 200px; }
+
+/* Login */
+.login-page { display: none; }
+.login-page.active { display: flex; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.login-card { width: 400px; padding: 40px; background: var(--white); border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,.1); }
+.login-card h1 { text-align: center; margin-bottom: 8px; font-size: 24px; }
+.login-card p { text-align: center; color: var(--text-secondary); margin-bottom: 32px; font-size: 14px; }
+.login-card .btn-primary { width: 100%; padding: 10px; justify-content: center; font-size: 15px; }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { width: 60px; }
+  .sidebar .logo span, .sidebar .nav-item span, .sidebar .user-info div { display: none; }
+  .sidebar .logo { justify-content: center; }
+  .sidebar .nav-item { justify-content: center; padding: 12px; }
+  .sidebar .user-info { justify-content: center; }
+  .row { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+
+<!-- Login Page -->
+<div id="loginPage" class="login-page active">
+  <div class="login-card">
+    <h1>智能问答系统</h1>
+    <p>企业知识库 · 智能问答平台</p>
+    <div class="form-group">
+      <label>用户名</label>
+      <input class="form-control" placeholder="请输入用户名" value="admin">
+    </div>
+    <div class="form-group">
+      <label>密码</label>
+      <input class="form-control" type="password" placeholder="请输入密码" value="123456">
+    </div>
+    <div class="form-group" style="display:flex;gap:8px;align-items:center;margin-bottom:24px;">
+      <select class="form-control" style="flex:1;">
+        <option>管理员</option>
+        <option>普通用户</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">登 录</button>
+  </div>
+</div>
+
+<!-- App -->
+<div id="appContainer" class="app-container" style="display:none;">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">AI</div>
+      <span>智能问答系统</span>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active" data-page="dashboard" onclick="switchPage('dashboard')">
+        <span class="icon">&#9632;</span><span>工作台</span>
+      </div>
+      <div class="nav-item" data-page="knowledge" onclick="switchPage('knowledge')">
+        <span class="icon">&#128218;</span><span>知识库管理</span>
+      </div>
+      <div class="nav-item" data-page="qa" onclick="switchPage('qa')">
+        <span class="icon">&#128172;</span><span>智能问答</span>
+      </div>
+      <div class="nav-item" data-page="history" onclick="switchPage('history')">
+        <span class="icon">&#128196;</span><span>问答历史</span>
+      </div>
+      <div class="nav-item" data-page="graph" onclick="switchPage('graph')">
+        <span class="icon">&#128279;</span><span>知识图谱</span>
+      </div>
+      <div class="nav-item" data-page="users" onclick="switchPage('users')">
+        <span class="icon">&#128101;</span><span>用户管理</span>
+      </div>
+      <div class="nav-item" data-page="config" onclick="switchPage('config')">
+        <span class="icon">&#9881;</span><span>系统配置</span>
+      </div>
+    </nav>
+    <div class="user-info">
+      <div class="avatar">A</div>
+      <div>
+        <div style="font-size:13px;color:#fff;">管理员</div>
+        <div style="font-size:11px;color:var(--sidebar-text);">admin@company.com</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="header">
+      <h2 id="pageTitle">工作台</h2>
+      <div class="header-actions">
+        <span id="userRoleBadge">管理员</span>
+        <a href="#" onclick="logout()">退出登录</a>
+      </div>
+    </header>
+    <div class="content">
+
+      <!-- ========== Dashboard ========== -->
+      <div id="pageDashboard" class="page active">
+        <div class="row">
+          <div class="col-3"><div class="stat-card"><div class="num">12</div><div class="label">知识库总数</div><div class="trend up">&#9650; 较上月 +2</div></div></div>
+          <div class="col-3"><div class="stat-card"><div class="num">1,284</div><div class="label">文档总数</div><div class="trend up">&#9650; 本周 +36</div></div></div>
+          <div class="col-3"><div class="stat-card"><div class="num">8,621</div><div class="label">总问答次数</div><div class="trend up">&#9650; 今日 +47</div></div></div>
+          <div class="col-3"><div class="stat-card"><div class="num">256</div><div class="label">活跃用户数</div><div class="trend up">&#9650; 较上月 +18</div></div></div>
+        </div>
+
+        <div class="row">
+          <div class="col-8">
+            <div class="card">
+              <div class="card-header">问答趋势（近7日）</div>
+              <div style="position:relative;height:220px;"><canvas id="trendChart"></canvas></div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="card">
+              <div class="card-header">系统运行状态</div>
+              <table>
+                <tr><td>存储使用量</td><td>256.3 GB / 1 TB</td><td style="color:var(--warning);">25.6%</td></tr>
+                <tr><td>API 今日调用</td><td>2,847 次</td><td style="color:var(--success);">正常</td></tr>
+                <tr><td>CPU 使用率</td><td>23%</td><td style="color:var(--success);">低</td></tr>
+                <tr><td>内存使用率</td><td>45%</td><td style="color:var(--success);">正常</td></tr>
+              </table>
+            </div>
+            <div class="card">
+              <div class="card-header">热点推荐</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                <span class="badge badge-processing" style="font-size:16px;padding:4px 12px;">薪资核算</span>
+                <span class="badge badge-processing" style="font-size:14px;padding:4px 10px;">年假政策</span>
+                <span class="badge badge-processing" style="font-size:18px;padding:4px 14px;">报销流程</span>
+                <span class="badge badge-processing" style="font-size:12px;">绩效考核</span>
+                <span class="badge badge-processing" style="font-size:15px;">入职指南</span>
+                <span class="badge badge-processing" style="font-size:13px;">社保缴纳</span>
+                <span class="badge badge-processing" style="font-size:17px;">出差标准</span>
+                <span class="badge badge-processing" style="font-size:11px;">培训政策</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">知识库概览</div>
+          <table>
+            <tr><th>知识库名称</th><th>文档总数</th><th>已解析</th><th>已向量化</th><th>图谱节点</th><th>图谱关系</th></tr>
+            <tr><td>人力资源</td><td>156</td><td>156</td><td>152</td><td>892</td><td>2,341</td></tr>
+            <tr><td>财务制度</td><td>89</td><td>89</td><td>87</td><td>534</td><td>1,256</td></tr>
+            <tr><td>技术文档</td><td>423</td><td>420</td><td>415</td><td>2,103</td><td>5,678</td></tr>
+            <tr><td>行政办公</td><td>67</td><td>67</td><td>65</td><td>312</td><td>789</td></tr>
+            <tr><td>市场销售</td><td>549</td><td>548</td><td>540</td><td>1,876</td><td>4,321</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== Knowledge Base ========== -->
+      <div id="pageKnowledge" class="page">
+        <div class="row" style="margin-bottom:16px;">
+          <div class="col-6"><button class="btn btn-primary" onclick="alert('新建知识库弹窗')">+ 新建知识库</button></div>
+          <div class="col-6" style="text-align:right;">
+            <input class="form-control" style="display:inline-block;width:200px;" placeholder="搜索知识库...">
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">知识库列表</div>
+          <table>
+            <tr><th>名称</th><th>文档数</th><th>向量数</th><th>图谱节点</th><th>创建时间</th><th>操作</th></tr>
+            <tr><td>人力资源</td><td>156</td><td>152</td><td>892</td><td>2026-01-15</td><td><button class="btn btn-sm" onclick="alert('编辑知识库')">编辑</button> <button class="btn btn-sm btn-danger" onclick="alert('确定删除？')">删除</button></td></tr>
+            <tr><td>财务制度</td><td>89</td><td>87</td><td>534</td><td>2026-02-03</td><td><button class="btn btn-sm" onclick="alert('编辑知识库')">编辑</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td>技术文档</td><td>423</td><td>415</td><td>2,103</td><td>2025-11-20</td><td><button class="btn btn-sm" onclick="alert('编辑知识库')">编辑</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td>行政办公</td><td>67</td><td>65</td><td>312</td><td>2026-03-01</td><td><button class="btn btn-sm" onclick="alert('编辑知识库')">编辑</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-header">文档管理 <span style="font-weight:400;font-size:13px;color:var(--text-secondary);margin-left:8px;">当前：人力资源</span></div>
+          <div class="row" style="margin-bottom:16px;">
+            <div class="col-6">
+              <button class="btn btn-primary" onclick="alert('上传文档弹窗：支持 PDF/Word，最大 1024MB')">+ 上传文档</button>
+              <button class="btn" onclick="alert('批量操作')">批量删除</button>
+            </div>
+            <div class="col-6" style="text-align:right;">
+              <select class="form-control" style="display:inline-block;width:140px;"><option>全部标签</option><option>财务</option><option>技术</option><option>人力</option></select>
+              <input class="form-control" style="display:inline-block;width:160px;" placeholder="搜索文档...">
+            </div>
+          </div>
+          <table>
+            <tr><th><input type="checkbox"></th><th>文件名</th><th>大小</th><th>标签</th><th>状态</th><th>上传时间</th><th>操作</th></tr>
+            <tr><td><input type="checkbox"></td><td>2026年薪资调整方案.pdf</td><td>2.3 MB</td><td><span class="badge badge-default">财务</span></td><td><span class="badge badge-success">已完成</span></td><td>2026-06-20</td><td><button class="btn btn-sm">下载</button> <button class="btn btn-sm">更新</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td><input type="checkbox"></td><td>员工培训管理制度.docx</td><td>1.1 MB</td><td><span class="badge badge-default">人力</span></td><td><span class="badge badge-success">已完成</span></td><td>2026-06-19</td><td><button class="btn btn-sm">下载</button> <button class="btn btn-sm">更新</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td><input type="checkbox"></td><td>产品技术架构白皮书.pdf</td><td>8.7 MB</td><td><span class="badge badge-default">技术</span></td><td><span class="badge badge-processing">解析中</span></td><td>2026-06-21</td><td><button class="btn btn-sm">下载</button> <button class="btn btn-sm">更新</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td><input type="checkbox"></td><td>2026Q2销售报告.docx</td><td>4.5 MB</td><td><span class="badge badge-default">财务</span></td><td><span class="badge badge-error">失败</span></td><td>2026-06-18</td><td><button class="btn btn-sm">下载</button> <button class="btn btn-sm">更新</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== Q&A ========== -->
+      <div id="pageQa" class="page">
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>智能问答</span>
+            <button class="btn btn-sm" onclick="clearChat()">清空对话</button>
+          </div>
+          <div class="kb-selector">
+            <span class="kb-tag active" onclick="toggleKb(this)">人力资源</span>
+            <span class="kb-tag" onclick="toggleKb(this)">财务制度</span>
+            <span class="kb-tag" onclick="toggleKb(this)">技术文档</span>
+            <span class="kb-tag active" onclick="toggleKb(this)">行政办公</span>
+          </div>
+          <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+              <div class="chat-msg bot">您好！我是智能问答助手，请选择知识库后开始提问。</div>
+              <div class="chat-msg user">请问今年的年假政策是什么？</div>
+              <div class="chat-msg bot">
+                <div>根据公司《员工假期管理制度》，2026年年假政策如下：</div>
+                <ul style="margin:8px 0;padding-left:20px;">
+                  <li>入职满1年不满10年：年假5天</li>
+                  <li>入职满10年不满20年：年假10天</li>
+                  <li>入职满20年：年假15天</li>
+                </ul>
+                <div>其中，新入职员工当年年假按实际工作月份折算。</div>
+                <div class="source">
+                  &#128279; 来源：<a href="#">人力资源 / 员工假期管理制度.pdf</a> — 第3章第2节<br>
+                  &#128279; 来源：<a href="#">人力资源 / 2026年休假规定补充说明.docx</a> — 第1页
+                </div>
+                <div class="feedback">
+                  <button onclick="alert('有用反馈已记录')">&#128077; 有用</button>
+                  <button onclick="alert('无用反馈已记录')">&#128078; 无用</button>
+                  <button onclick="let r=prompt('补充反馈意见：');if(r)alert('感谢您的反馈！')">&#128221; 反馈</button>
+                </div>
+              </div>
+            </div>
+            <div class="chat-input">
+              <input class="form-control" id="qaInput" placeholder="请输入您的问题..." onkeydown="if(event.key==='Enter')sendQuestion()">
+              <button class="btn btn-primary" onclick="sendQuestion()">发送</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== History ========== -->
+      <div id="pageHistory" class="page">
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>问答历史</span>
+            <div>
+              <button class="btn btn-sm" onclick="alert('导出 CSV')">导出 CSV</button>
+              <button class="btn btn-sm" onclick="alert('导出 JSON')">导出 JSON</button>
+              <button class="btn btn-sm btn-danger" onclick="alert('批量删除')">批量删除</button>
+            </div>
+          </div>
+          <div class="search-bar">
+            <input class="form-control" placeholder="搜索提问内容...">
+            <input class="form-control" type="date" value="2026-06-01" style="max-width:160px;">
+            <input class="form-control" type="date" value="2026-06-21" style="max-width:160px;">
+            <button class="btn btn-primary">搜索</button>
+          </div>
+          <table>
+            <tr><th><input type="checkbox"></th><th>问题</th><th>知识库</th><th>时间</th><th>反馈</th><th>操作</th></tr>
+            <tr><td><input type="checkbox"></td><td>请问今年的年假政策是什么？</td><td>人力资源</td><td>2026-06-21 14:32</td><td><span class="badge badge-success">有用</span></td><td><button class="btn btn-sm" onclick="alert('查看对话详情')">查看</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td><input type="checkbox"></td><td>报销流程需要哪些材料？</td><td>财务制度</td><td>2026-06-21 10:15</td><td><span class="badge badge-success">有用</span></td><td><button class="btn btn-sm">查看</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td><input type="checkbox"></td><td>如何申请 VPN 权限？</td><td>技术文档</td><td>2026-06-20 16:48</td><td><span class="badge badge-default">未反馈</span></td><td><button class="btn btn-sm">查看</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td><input type="checkbox"></td><td>出差住宿标准是多少？</td><td>行政办公</td><td>2026-06-20 09:30</td><td><span class="badge badge-error">无用</span></td><td><button class="btn btn-sm">查看</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td><input type="checkbox"></td><td>绩效考核的评分规则</td><td>人力资源</td><td>2026-06-19 15:22</td><td><span class="badge badge-success">有用</span></td><td><button class="btn btn-sm">查看</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== Knowledge Graph ========== -->
+      <div id="pageGraph" class="page">
+        <div class="row" style="margin-bottom:16px;">
+          <div class="col-6">
+            <button class="btn btn-primary" onclick="alert('手动触发图谱构建/更新流程')">&#9654; 手动构建</button>
+            <button class="btn" onclick="alert('新增实体节点')">+ 新增节点</button>
+            <button class="btn" onclick="alert('新增关系边')">+ 新增关系</button>
+          </div>
+          <div class="col-6" style="text-align:right;">
+            <input class="form-control" style="display:inline-block;width:200px;" placeholder="搜索实体..." oninput="searchGraphNode(this.value)">
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">知识图谱可视化</div>
+          <canvas id="graphCanvas" class="graph-canvas"></canvas>
+        </div>
+        <div class="card">
+          <div class="card-header">实体列表</div>
+          <table>
+            <tr><th>实体名称</th><th>类型</th><th>关联文档</th><th>关系数</th><th>操作</th></tr>
+            <tr><td>薪资核算</td><td>概念</td><td>2026薪资调整方案.pdf</td><td>12</td><td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td>人力资源部</td><td>组织</td><td>组织架构手册.pdf</td><td>8</td><td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td>员工培训</td><td>概念</td><td>员工培训管理制度.docx</td><td>6</td><td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== User Management ========== -->
+      <div id="pageUsers" class="page">
+        <div class="row" style="margin-bottom:16px;">
+          <div class="col-6">
+            <button class="btn btn-primary" onclick="alert('新增用户弹窗')">+ 新增用户</button>
+            <button class="btn" onclick="alert('批量导入 Excel')">导入</button>
+            <button class="btn" onclick="alert('导出用户列表')">导出</button>
+          </div>
+          <div class="col-6" style="text-align:right;">
+            <select class="form-control" style="display:inline-block;width:120px;"><option>全部角色</option><option>管理员</option><option>普通用户</option></select>
+            <select class="form-control" style="display:inline-block;width:120px;"><option>全部状态</option><option>启用</option><option>禁用</option></select>
+            <input class="form-control" style="display:inline-block;width:160px;" placeholder="搜索用户...">
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">用户列表</div>
+          <table>
+            <tr><th>用户名</th><th>角色</th><th>状态</th><th>创建时间</th><th>最后登录</th><th>可访问知识库</th><th>操作</th></tr>
+            <tr><td>admin</td><td><span class="badge badge-processing">管理员</span></td><td><span class="badge badge-success">启用</span></td><td>2025-01-01</td><td>2026-06-21 14:30</td><td>全部</td><td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-danger">禁用</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td>zhangsan</td><td><span class="badge badge-default">普通用户</span></td><td><span class="badge badge-success">启用</span></td><td>2026-03-15</td><td>2026-06-21 11:20</td><td>人力资源、财务制度</td><td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-danger">禁用</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td>lisi</td><td><span class="badge badge-default">普通用户</span></td><td><span class="badge badge-success">启用</span></td><td>2026-04-01</td><td>2026-06-20 16:45</td><td>全部</td><td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-danger">禁用</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+            <tr><td>wangwu</td><td><span class="badge badge-default">普通用户</span></td><td><span class="badge badge-error">禁用</span></td><td>2026-02-20</td><td>2026-05-30 09:10</td><td>无</td><td><button class="btn btn-sm">编辑</button> <button class="btn btn-sm btn-primary">启用</button> <button class="btn btn-sm btn-danger">删除</button></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== System Config ========== -->
+      <div id="pageConfig" class="page">
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>系统配置</span>
+            <button class="btn btn-primary" onclick="alert('配置已保存')">保存配置</button>
+          </div>
+
+          <div class="config-group">
+            <div class="config-group-title">LLM 参数</div>
+            <div class="config-row">
+              <div class="form-group"><label>模型选择</label><select class="form-control"><option>qwen3.7-plus</option><option>gpt-4o</option><option>deepseek-v3</option></select></div>
+              <div class="form-group"><label>温度 (Temperature)</label><input class="form-control" value="0.7"></div>
+              <div class="form-group"><label>最大 Token 数</label><input class="form-control" value="4096"></div>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <div class="config-group-title">Embedding 模型</div>
+            <div class="config-row">
+              <div class="form-group"><label>模型选择</label><select class="form-control"><option>text-embedding-v3</option><option>text-embedding-ada-002</option></select></div>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <div class="config-group-title">解析策略</div>
+            <div class="config-row">
+              <div class="form-group"><label>分块大小</label><input class="form-control" value="512"></div>
+              <div class="form-group"><label>重叠大小</label><input class="form-control" value="64"></div>
+              <div class="form-group"><label>解析语言</label><select class="form-control"><option>中文</option><option>英文</option><option>自动</option></select></div>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <div class="config-group-title">问答参数</div>
+            <div class="config-row">
+              <div class="form-group"><label>引用来源数量 (Top-K)</label><input class="form-control" value="3"></div>
+              <div class="form-group"><label>相似度检索阈值</label><input class="form-control" value="0.75"></div>
+              <div class="form-group"><label>启用重排序</label><select class="form-control"><option>是</option><option>否</option></select></div>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <div class="config-group-title">检索配置</div>
+            <div class="config-row">
+              <div class="form-group"><label>检索方式</label><select class="form-control"><option>混合检索</option><option>向量检索</option><option>关键词检索</option></select></div>
+              <div class="form-group"><label>召回数量 (Top-K)</label><input class="form-control" value="5"></div>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <div class="config-group-title">存储配置</div>
+            <div class="config-row">
+              <div class="form-group"><label>文档存储路径</label><input class="form-control" value="/data/documents"></div>
+              <div class="form-group"><label>向量库路径</label><input class="form-control" value="/data/chromadb"></div>
+            </div>
+          </div>
+
+          <div class="config-group">
+            <div class="config-group-title">知识图谱配置</div>
+            <div class="config-row">
+              <div class="form-group"><label>图谱构建策略</label><select class="form-control"><option>自动</option><option selected>手动</option></select></div>
+              <div class="form-group"><label>实体抽取范围</label><input class="form-control" value="全部文档"></div>
+              <div class="form-group"><label>关系抽取深度</label><input class="form-control" value="2" type="number"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app-container -->
+
+<script>
+// ===== Routing =====
+const pageMap = {
+  dashboard: { title: '工作台', admin: true },
+  knowledge: { title: '知识库管理', admin: true },
+  qa: { title: '智能问答', admin: false },
+  history: { title: '问答历史', admin: false },
+  graph: { title: '知识图谱管理', admin: true },
+  users: { title: '用户管理', admin: true },
+  config: { title: '系统配置', admin: true }
+};
+let currentUser = { role: '管理员' };
+
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page' + page.charAt(0).toUpperCase() + page.slice(1)).classList.add('active');
+  document.querySelector(`.nav-item[data-page="${page}"]`).classList.add('active');
+  document.getElementById('pageTitle').textContent = pageMap[page].title;
+
+  // Init charts on demand
+  if (page === 'graph') initGraph();
+}
+
+function doLogin() {
+  document.getElementById('loginPage').classList.remove('active');
+  document.getElementById('appContainer').style.display = 'flex';
+  switchPage('dashboard');
+  initTrendChart();
+}
+
+function logout() {
+  document.getElementById('appContainer').style.display = 'none';
+  document.getElementById('loginPage').classList.add('active');
+}
+
+// ===== Q&A =====
+function toggleKb(el) {
+  el.classList.toggle('active');
+}
+
+function sendQuestion() {
+  const input = document.getElementById('qaInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  const container = document.getElementById('chatMessages');
+  container.innerHTML += `<div class="chat-msg user">${msg}</div>`;
+  input.value = '';
+
+  // Mock reply
+  setTimeout(() => {
+    const replies = [
+      `<div>根据系统知识库检索，关于"${msg}"的相关信息如下：</div>
+       <div style="margin:8px 0;">这是基于RAG检索生成的回答示例内容。系统从已选知识库中匹配到相关文档，并结合LLM生成此回复。</div>
+       <div class="source">
+         &#128279; 来源：<a href="#">人力资源 / 相关文档.pdf</a> — 第2章<br>
+         &#128279; 来源：<a href="#">技术文档 / 参考资料.docx</a> — 第5节
+       </div>
+       <div class="feedback">
+         <button onclick="alert('有用反馈已记录')">&#128077; 有用</button>
+         <button onclick="alert('无用反馈已记录')">&#128078; 无用</button>
+         <button onclick="let r=prompt('补充反馈意见：');if(r)alert('感谢您的反馈！')">&#128221; 反馈</button>
+       </div>`,
+      `这是一个自动生成的模拟回答，展示系统在多轮对话中的回复格式。回答支持富文本展示，包括 <b>加粗</b>、<i>斜体</i>、列表和表格等。<div class="source">&#128279; 来源：<a href="#">行政办公 / 办公指南.pdf</a></div><div class="feedback"><button onclick="alert('有用反馈已记录')">&#128077; 有用</button><button onclick="alert('无用反馈已记录')">&#128078; 无用</button></div>`
+    ];
+    container.innerHTML += `<div class="chat-msg bot">${replies[Math.floor(Math.random() * replies.length)]}</div>`;
+    container.scrollTop = container.scrollHeight;
+  }, 600);
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearChat() {
+  document.getElementById('chatMessages').innerHTML = '<div class="chat-msg bot">您好！我是智能问答助手，请选择知识库后开始提问。</div>';
+}
+
+// ===== Charts =====
+let trendChartInstance = null;
+
+function initTrendChart() {
+  if (trendChartInstance) return;
+  const canvas = document.getElementById('trendChart');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  trendChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['06/15', '06/16', '06/17', '06/18', '06/19', '06/20', '06/21'],
+      datasets: [{
+        label: '问答次数',
+        data: [112, 136, 98, 154, 172, 148, 201],
+        borderColor: '#1677ff',
+        backgroundColor: 'rgba(22,119,255,0.1)',
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#1677ff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+// ===== Knowledge Graph (Canvas) =====
+let graphNodes = [];
+let graphEdges = [];
+let selectedNode = null;
+let dragNode = null;
+let graphNeedsInit = true;
+
+function initGraph() {
+  const canvas = document.getElementById('graphCanvas');
+  if (!canvas || !graphNeedsInit) return;
+  graphNeedsInit = false;
+
+  graphNodes = [
+    { id: 'n1', label: '薪资核算', x: 300, y: 80, type: 'concept' },
+    { id: 'n2', label: '人力资源部', x: 120, y: 200, type: 'org' },
+    { id: 'n3', label: '员工培训', x: 500, y: 200, type: 'concept' },
+    { id: 'n4', label: '绩效考核', x: 300, y: 320, type: 'concept' },
+    { id: 'n5', label: '招聘流程', x: 120, y: 80, type: 'concept' },
+    { id: 'n6', label: '薪酬制度', x: 500, y: 80, type: 'concept' },
+  ];
+  graphEdges = [
+    { from: 'n1', to: 'n2', label: '负责' },
+    { from: 'n1', to: 'n4', label: '关联' },
+    { from: 'n3', to: 'n2', label: '负责' },
+    { from: 'n5', to: 'n2', label: '负责' },
+    { from: 'n6', to: 'n1', label: '包含' },
+    { from: 'n4', to: 'n3', label: '包含' },
+    { from: 'n5', to: 'n3', label: '关联' },
+  ];
+
+  drawGraph();
+  setupGraphDrag(canvas);
+}
+
+function drawGraph() {
+  const canvas = document.getElementById('graphCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  // Draw edges
+  ctx.strokeStyle = '#bbb';
+  ctx.lineWidth = 1.5;
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#666';
+  ctx.textAlign = 'center';
+  for (const e of graphEdges) {
+    const from = graphNodes.find(n => n.id === e.from);
+    const to = graphNodes.find(n => n.id === e.to);
+    if (!from || !to) continue;
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+
+    // Arrow
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    const ax = to.x - 18 * Math.cos(angle);
+    const ay = to.y - 18 * Math.sin(angle);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 8 * Math.cos(angle - 0.4), ay - 8 * Math.sin(angle - 0.4));
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - 8 * Math.cos(angle + 0.4), ay - 8 * Math.sin(angle + 0.4));
+    ctx.stroke();
+
+    // Edge label
+    const mx = (from.x + to.x) / 2;
+    const my = (from.y + to.y) / 2 - 8;
+    ctx.fillStyle = '#999';
+    ctx.fillText(e.label, mx, my);
+  }
+
+  // Draw nodes
+  for (const n of graphNodes) {
+    const isSelected = selectedNode === n.id;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 22, 0, Math.PI * 2);
+    ctx.fillStyle = isSelected ? '#1677ff' : '#e6f4ff';
+    ctx.fill();
+    ctx.strokeStyle = isSelected ? '#1677ff' : '#91caff';
+    ctx.lineWidth = isSelected ? 2.5 : 1.5;
+    ctx.stroke();
+
+    ctx.fillStyle = isSelected ? '#fff' : '#1677ff';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.label, n.x, n.y + 40);
+    ctx.fillStyle = isSelected ? '#fff' : '#333';
+    ctx.font = '13px sans-serif';
+    ctx.fillText(n.label.substring(0, 2), n.x, n.y + 5);
+  }
+}
+
+function setupGraphDrag(canvas) {
+  let isDragging = false;
+
+  canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    for (const n of graphNodes) {
+      if (Math.hypot(mx - n.x, my - n.y) < 22) {
+        if (e.shiftKey) {
+          selectedNode = n.id;
+          drawGraph();
+          return;
+        }
+        dragNode = n;
+        isDragging = true;
+        return;
+      }
+    }
+    selectedNode = null;
+    drawGraph();
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging || !dragNode) return;
+    const rect = canvas.getBoundingClientRect();
+    dragNode.x = e.clientX - rect.left;
+    dragNode.y = e.clientY - rect.top;
+    drawGraph();
+  });
+
+  canvas.addEventListener('mouseup', () => {
+    isDragging = false;
+    dragNode = null;
+  });
+}
+
+function searchGraphNode(val) {
+  if (!val) {
+    selectedNode = null;
+    drawGraph();
+    return;
+  }
+  const found = graphNodes.find(n => n.label.includes(val));
+  if (found) {
+    selectedNode = found.id;
+    drawGraph();
+  }
+}
+
+// ===== Init on load =====
+window.addEventListener('resize', () => {
+  if (trendChartInstance) trendChartInstance.resize();
+  if (document.getElementById('pageGraph').classList.contains('active')) drawGraph();
+});
+</script>
+</body>
+</html>

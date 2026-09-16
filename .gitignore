@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.egg
+.venv/
+venv/
+.pytest_cache/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite3
+
+# Environment
+.env
+.env.*
+*.env.local
+!.env.example
+
+# 本地数据库运维脚本（含本机密码，不纳入版本管理）
+reset_pwd.sql
+setup_db.ps1
+reset_mysql_admin.ps1
+start_mysql_skip.bat
+
+# Node
+node_modules/
+dist/
+.turbo/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Uploads
+uploads/
+
+# 向量库数据（本机索引，体积大且可由脚本重建）
+chroma_data/
+chromadb_data/
