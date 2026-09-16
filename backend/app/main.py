@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import api_router
+from app.core.config import settings
 from app.db.mysql import engine, Base
 from app.models import *  # noqa: ensure models are imported
 
@@ -19,6 +20,10 @@ app.include_router(api_router)
 
 @app.on_event("startup")
 def on_startup():
+    # 测试环境由测试用例自行建表（见 tests/conftest.py 的 SQLite 内存库），
+    # 此处跳过，避免在无外部依赖的 CI 环境中尝试连接 MySQL。
+    if settings.env == "test":
+        return
     Base.metadata.create_all(bind=engine)
 
 

@@ -4,6 +4,9 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # 测试环境：跳过数据库建表与外部服务连接
+      ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

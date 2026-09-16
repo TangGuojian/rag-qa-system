@@ -1,6 +1,10 @@
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
+    # 运行环境：development / production / test
+    # 测试环境（test）下跳过数据库连接与建表，便于在无外部依赖的 CI 中运行
+    env: str = "development"
+
     # MySQL
     mysql_host: str = "localhost"
     mysql_port: int = 3306

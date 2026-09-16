@@ -1,5 +1,15 @@
-import pytest
 import os
+
+# 必须在导入 app 之前设置：
+# 1) ENV=test 让 app 的 startup 跳过 MySQL 建表
+# 2) TEST_DATABASE_URL 让 app 自身的 engine 也指向本测试库，
+#    避免绕过 get_db 覆盖的代码路径（如 RAG 检索）打到空库上
+os.environ["ENV"] = "test"
+
+TEST_DB_PATH = os.path.join(os.path.dirname(__file__), "test.db")
+os.environ.setdefault("TEST_DATABASE_URL", "sqlite:///" + TEST_DB_PATH.replace("\\", "/"))
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
@@ -7,8 +17,6 @@ from app.db.mysql import Base, get_db
 from app.main import app
 from app.core.auth import hash_password
 from app.models.user import User, UserRole, UserStatus
-
-TEST_DB_PATH = os.path.join(os.path.dirname(__file__), "test.db")
 
 # Use file-based SQLite with check_same_thread=False
 engine = create_engine(
@@ -26,15 +34,18 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session", autouse=True)
 def db_engine():
+    """会话级建表。autouse 保证无论测试顺序如何，表结构都已就绪
+    （app 的 engine 与这里的 engine 指向同一个 SQLite 文件）。"""
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
+    # 清理测试库文件；Windows 下文件可能仍被连接占用，清理失败不应影响测试结果
     if os.path.exists(TEST_DB_PATH):
         try:
             os.remove(TEST_DB_PATH)
-        except PermissionError:
+        except OSError:
             pass
     # also clean WAL and SHM files
     for ext in ["-wal", "-shm"]:
@@ -42,7 +53,7 @@ def db_engine():
         if os.path.exists(p):
             try:
                 os.remove(p)
-            except PermissionError:
+            except OSError:
                 pass
 
 
