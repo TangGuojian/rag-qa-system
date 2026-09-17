@@ -49,3 +49,8 @@ uploads/
 # 向量库数据（本机索引，体积大且可由脚本重建）
 chroma_data/
 chromadb_data/
+
+# 例外：前端构建产物需要入库。
+# 为了让使用者 clone 后不必安装 Node.js 就能直接打开界面，后端会直接托管该目录。
+# 重新构建后请一并提交：cd frontend && npm run build
+!frontend/dist/

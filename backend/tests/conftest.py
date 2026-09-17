@@ -4,7 +4,12 @@ import os
 # 1) ENV=test 让 app 的 startup 跳过 MySQL 建表
 # 2) TEST_DATABASE_URL 让 app 自身的 engine 也指向本测试库，
 #    避免绕过 get_db 覆盖的代码路径（如 RAG 检索）打到空库上
+# 3) 占位 API Key，让「是否配置了 Key」的判定不依赖开发机上的 .env，
+#    测试结果因此在本地与 CI 完全一致（外部调用一律被 mock 掉，
+#    不会真的发出请求，也不会消耗任何额度）
 os.environ["ENV"] = "test"
+os.environ.setdefault("LLM_API_KEY", "sk-test-placeholder")
+os.environ.setdefault("EMBEDDING_API_KEY", "sk-test-placeholder")
 
 TEST_DB_PATH = os.path.join(os.path.dirname(__file__), "test.db")
 os.environ.setdefault("TEST_DATABASE_URL", "sqlite:///" + TEST_DB_PATH.replace("\\", "/"))

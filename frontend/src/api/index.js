@@ -1,9 +1,11 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+// 默认使用相对路径：前端构建产物由后端直接托管时同源即可访问，无需额外配置。
+// 需要指向独立的后端服务时，设置 VITE_API_BASE_URL 覆盖即可。
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1',
-  timeout: 30000,
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  timeout: 60000,
 })
 
 api.interceptors.request.use((config) => {
@@ -74,6 +76,13 @@ export const userApi = {
 export const configApi = {
   get: () => api.get('/config'),
   update: (data) => api.put('/config', data),
+}
+
+export const aiApi = {
+  providers: () => api.get('/ai/providers'),
+  status: () => api.get('/ai/status'),
+  test: (data) => api.post('/ai/test', data),
+  models: (data) => api.post('/ai/models', data),
 }
 
 export const dashboardApi = {

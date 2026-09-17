@@ -44,12 +44,33 @@ def get_my_profile(db: Session = Depends(get_db), user: User = Depends(get_curre
     return UserResponse.model_validate(user).model_dump()
 
 
+def _normalize(value: str | None) -> str | None:
+    """空字符串统一存成 NULL，语义是「沿用系统默认配置」。"""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _normalize_base(value: str | None) -> str | None:
+    """顺手去掉地址结尾多余的斜杠——手工粘贴时很常见。"""
+    value = _normalize(value)
+    return value.rstrip("/") if value else None
+
+
 @router.put("/me", response_model=dict)
 def update_my_profile(req: UserProfileUpdate, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     if req.display_name is not None:
         user.display_name = req.display_name
+    # 只有请求里显式带了这些字段才更新，避免「只改显示名」时把已存的 Key 清掉
     if "api_key" in req.model_fields_set:
-        user.api_key = req.api_key
+        user.api_key = _normalize(req.api_key)
+    if "api_base" in req.model_fields_set:
+        user.api_base = _normalize_base(req.api_base)
+    if "llm_model" in req.model_fields_set:
+        user.llm_model = _normalize(req.llm_model)
+    if "embedding_model" in req.model_fields_set:
+        user.embedding_model = _normalize(req.embedding_model)
     db.commit()
     db.refresh(user)
     return UserResponse.model_validate(user).model_dump()

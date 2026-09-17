@@ -90,7 +90,13 @@ class TestRagEngine:
             "测试", [1], None,
             session_id="s1", db_session=MagicMock(), user_id=1,
         ))
-        assert "".join(tokens) == "tok1tok2"
+        # 文本片段 + 末尾一条溯源元信息
+        text = "".join(t for t in tokens if isinstance(t, str))
+        assert text == "tok1tok2"
+
+        meta = [t for t in tokens if isinstance(t, dict)]
+        assert len(meta) == 1
+        assert meta[0]["sources"] == mock_search.return_value
 
     @patch("app.rag.engine.SessionLocal")
     def test_load_rag_config_default(self, mock_db):

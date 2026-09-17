@@ -1,3 +1,5 @@
+from app.core.ai_config import AIConfig, from_api_key
+from app.core.errors import EmbeddingMismatchError
 from app.db.chroma import get_collection
 from app.rag.embedding import embed_text
 from app.db.mysql import SessionLocal
@@ -8,6 +10,25 @@ from app.utils.text import extract_chinese_bigrams
 TOP_K = 5
 SCORE_THRESHOLD = 0.3
 FALLBACK_THRESHOLD = 0.2
+
+
+def _query(collection, query_vector: list[float], top_k: int):
+    """向量检索。把「维度不一致」翻译成能看懂的中文提示。
+
+    切换向量模型后旧索引仍然存在，此时维度往往对不上，
+    ChromaDB 抛出的原始错误对使用者没有指导意义。
+    """
+    try:
+        return collection.query(
+            query_embeddings=[query_vector],
+            n_results=top_k,
+            include=["documents", "metadatas", "distances"],
+        )
+    except Exception as exc:  # noqa: BLE001 - 需要区分是否为维度问题后再决定是否上抛
+        message = str(exc).lower()
+        if "dimension" in message or "dimensionality" in message:
+            raise EmbeddingMismatchError() from exc
+        raise
 
 
 class ChunkResult:
@@ -86,8 +107,10 @@ def _keyword_content_search(question: str, kb_ids: list[int]) -> list[dict]:
 def search_knowledge(
     question: str, kb_ids: list[int], api_key: str | None = None,
     top_k: int = TOP_K, threshold: float = SCORE_THRESHOLD,
+    *, ai: AIConfig | None = None,
 ) -> list[ChunkResult]:
-    query_vector = embed_text(question, api_key)
+    cfg = ai or from_api_key(api_key)
+    query_vector = embed_text(question, ai=cfg)
     results: list[ChunkResult] = []
 
     for kb_id in kb_ids:
@@ -96,11 +119,7 @@ def search_knowledge(
         except Exception:
             continue
 
-        hits = collection.query(
-            query_embeddings=[query_vector],
-            n_results=top_k,
-            include=["documents", "metadatas", "distances"],
-        )
+        hits = _query(collection, query_vector, top_k)
 
         if not hits["documents"] or not hits["documents"][0]:
             continue
@@ -132,11 +151,7 @@ def search_knowledge(
             for kh in keyword_hits:
                 try:
                     collection = get_collection(kh["kb_id"])
-                    hits = collection.query(
-                        query_embeddings=[query_vector],
-                        n_results=top_k,
-                        include=["documents", "metadatas", "distances"],
-                    )
+                    hits = _query(collection, query_vector, top_k)
                     if hits["documents"] and hits["documents"][0]:
                         for i, doc in enumerate(hits["documents"][0]):
                             meta = hits["metadatas"][0][i] if hits["metadatas"] else {}

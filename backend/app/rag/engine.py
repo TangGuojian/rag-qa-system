@@ -1,3 +1,5 @@
+from app.core.ai_config import AIConfig, from_api_key
+from app.db.neo4j_db import neo4j_available
 from app.rag.retriever import search_knowledge
 from app.rag.graph_retriever import search_graph
 from app.rag.llm import generate_answer, generate_answer_stream
@@ -44,20 +46,24 @@ def _load_history(db_session, user_id: int, session_id: str, max_turns: int = 6)
         return []
 
 
-def _search_contexts(question: str, kb_ids: list[int], api_key: str | None, cfg: dict) -> list[dict]:
-    chunks = search_knowledge(question, kb_ids, api_key, top_k=cfg["top_k"], threshold=cfg["threshold"])
+def _search_contexts(question: str, kb_ids: list[int], api_key: str | None, cfg: dict, ai: AIConfig | None = None) -> list[dict]:
+    creds = ai or from_api_key(api_key)
+    chunks = search_knowledge(
+        question, kb_ids, top_k=cfg["top_k"], threshold=cfg["threshold"], ai=creds,
+    )
     contexts = [
         {"content": c.content, "kb_name": c.kb_name, "filename": c.filename, "score": c.score}
         for c in chunks
     ]
-    try:
-        graph_results = search_graph(question)
-        for gr in graph_results:
-            contexts.append({
-                "content": gr.content, "kb_name": gr.source, "filename": "知识图谱", "score": gr.score,
-            })
-    except Exception:
-        pass
+    # 图谱增强是可选的：没部署 Neo4j 时自动跳过，不影响主链路
+    if neo4j_available():
+        try:
+            for gr in search_graph(question):
+                contexts.append({
+                    "content": gr.content, "kb_name": gr.source, "filename": "知识图谱", "score": gr.score,
+                })
+        except Exception:
+            pass
     contexts.sort(key=lambda x: x["score"], reverse=True)
     return contexts
 
@@ -65,27 +71,41 @@ def _search_contexts(question: str, kb_ids: list[int], api_key: str | None, cfg:
 def answer_question(
     question: str, kb_ids: list[int], api_key: str | None = None,
     session_id: str | None = None, db_session=None, user_id: int | None = None,
+    *, ai: AIConfig | None = None,
 ) -> tuple[str, list[dict]]:
     cfg = _load_rag_config()
+    creds = ai or from_api_key(api_key)
     history = _load_history(db_session, user_id, session_id) if db_session and session_id and user_id else None
-    contexts = _search_contexts(question, kb_ids, api_key, cfg)
+    contexts = _search_contexts(question, kb_ids, api_key, cfg, ai=creds)
 
     if not contexts:
         return "未在知识库中找到相关信息，请尝试换个问法。", []
 
-    answer = generate_answer(question, contexts, api_key, temperature=cfg["temperature"], max_tokens=cfg["max_tokens"], history=history)
+    answer = generate_answer(
+        question, contexts, temperature=cfg["temperature"],
+        max_tokens=cfg["max_tokens"], history=history, ai=creds,
+    )
     return answer, contexts
 
 
 def answer_question_stream(
     question: str, kb_ids: list[int], api_key: str | None = None,
     session_id: str | None = None, db_session=None, user_id: int | None = None,
+    *, ai: AIConfig | None = None,
 ):
     cfg = _load_rag_config()
+    creds = ai or from_api_key(api_key)
     history = _load_history(db_session, user_id, session_id) if db_session and session_id and user_id else None
-    contexts = _search_contexts(question, kb_ids, api_key, cfg)
+    contexts = _search_contexts(question, kb_ids, api_key, cfg, ai=creds)
 
     if not contexts:
         yield "未在知识库中找到相关信息，请尝试换个问法。"
-    else:
-        yield from generate_answer_stream(question, contexts, api_key, temperature=cfg["temperature"], max_tokens=cfg["max_tokens"], history=history)
+        return
+
+    yield from generate_answer_stream(
+        question, contexts, temperature=cfg["temperature"],
+        max_tokens=cfg["max_tokens"], history=history, ai=creds,
+    )
+    # 文本流结束后回传一次溯源信息（dict 形式作为结束标记），
+    # 让流式回答同样能展示「参考来源」
+    yield {"sources": contexts}

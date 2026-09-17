@@ -31,7 +31,11 @@ class UserUpdate(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     display_name: Optional[str] = None
+    # 以下四项留空表示沿用系统默认配置
     api_key: Optional[str] = None
+    api_base: Optional[str] = None
+    llm_model: Optional[str] = None
+    embedding_model: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -42,6 +46,9 @@ class UserResponse(BaseModel):
     role: str
     status: str
     api_key: Optional[str] = None
+    api_base: Optional[str] = None
+    llm_model: Optional[str] = None
+    embedding_model: Optional[str] = None
     created_at: datetime
     last_login: Optional[datetime] = None
 

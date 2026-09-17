@@ -8,7 +8,10 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
+# 注意：dist 已纳入版本管理。后端会直接托管该目录，
+# 这样使用者 clone 后不必安装 Node.js 就能打开界面。
+# 重新构建前端后请一并提交：npm run build
+# dist
 dist-ssr
 *.local
 .env

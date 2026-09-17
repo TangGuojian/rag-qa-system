@@ -1,9 +1,12 @@
 import json
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db.mysql import get_db
 from app.core.dependencies import get_current_user
+from app.core.ai_config import for_user
+from app.core.errors import EmbeddingMismatchError, MissingApiKeyError
 from app.models.user import User
 from app.models.history import QaHistory
 from app.schemas.qa import AskRequest, FeedbackRequest, QAResult, SourceInfo
@@ -11,14 +14,27 @@ from app.rag.engine import answer_question, answer_question_stream
 
 router = APIRouter()
 
+NEED_KEY_MESSAGE = (
+    "尚未配置 AI 服务 API Key。请先进入「个人设置」，"
+    "选择服务商（如阿里云百炼 / 硅基流动）并填写你自己的 API Key，保存后再提问。"
+)
+
 
 @router.post("/ask", response_model=QAResult)
 def ask_question(req: AskRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    ai = for_user(user)
+    if not ai.has_key:
+        raise HTTPException(status_code=400, detail=NEED_KEY_MESSAGE)
+
+    session_id = req.session_id or uuid.uuid4().hex
+
     try:
         answer, sources = answer_question(
-            req.question, req.kb_ids, user.api_key,
-            session_id=req.session_id, db_session=db, user_id=user.id,
+            req.question, req.kb_ids,
+            session_id=session_id, db_session=db, user_id=user.id, ai=ai,
         )
+    except (MissingApiKeyError, EmbeddingMismatchError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"问答引擎错误: {str(e)}")
 
@@ -27,7 +43,7 @@ def ask_question(req: AskRequest, db: Session = Depends(get_db), user: User = De
         question=req.question,
         answer=answer,
         kb_ids=req.kb_ids,
-        session_id=req.session_id,
+        session_id=session_id,
     )
     db.add(record)
     db.commit()
@@ -38,7 +54,7 @@ def ask_question(req: AskRequest, db: Session = Depends(get_db), user: User = De
             SourceInfo(kb_name=s["kb_name"], filename=s["filename"], content=s["content"])
             for s in sources
         ],
-        session_id=req.session_id,
+        session_id=session_id,
     )
 
 
@@ -63,21 +79,38 @@ async def ask_question_stream(req: Request):
         db.close()
         raise HTTPException(status_code=401, detail="用户不存在")
     user_id = user.id
-    api_key = user.api_key
+    ai = for_user(user)
 
     async def event_stream():
+        def sse(payload: dict) -> str:
+            return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        # 缺少 Key 时不留白屏：直接把原因告诉前端
+        if not ai.has_key:
+            yield sse({"token": "", "done": True, "error": NEED_KEY_MESSAGE})
+            db.close()
+            return
+
         full_answer = ""
         sources = []
         try:
-            generator = answer_question_stream(question, kb_ids, api_key, session_id=session_id, db_session=db, user_id=user_id)
-            for token_text in generator:
-                if isinstance(token_text, dict):
-                    sources = token_text.get("sources", [])
+            generator = answer_question_stream(
+                question, kb_ids, session_id=session_id,
+                db_session=db, user_id=user_id, ai=ai,
+            )
+            for item in generator:
+                if isinstance(item, dict):
+                    # 引擎在回答结束后回传一次溯源信息
+                    sources = item.get("sources", [])
                 else:
-                    full_answer += token_text
-                    yield f"data: {json.dumps({'token': token_text, 'done': False})}\n\n"
+                    full_answer += item
+                    yield sse({"token": item, "done": False})
+        except (MissingApiKeyError, EmbeddingMismatchError) as e:
+            yield sse({"token": "", "done": True, "error": str(e)})
+            db.close()
+            return
         except Exception as e:
-            yield f"data: {json.dumps({'token': '', 'done': True, 'error': str(e)})}\n\n"
+            yield sse({"token": "", "done": True, "error": str(e)})
             db.close()
             return
 
@@ -92,7 +125,7 @@ async def ask_question_stream(req: Request):
         db.commit()
         db.close()
 
-        yield f"data: {json.dumps({'token': '', 'done': True, 'sources': sources, 'qa_id': record.id})}\n\n"
+        yield sse({"token": "", "done": True, "sources": sources, "qa_id": record.id})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

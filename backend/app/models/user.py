@@ -24,7 +24,12 @@ class User(Base):
     email = Column(String(128), nullable=True)
     role = Column(SAEnum(UserRole), nullable=False, default=UserRole.USER)
     status = Column(SAEnum(UserStatus), nullable=False, default=UserStatus.ACTIVE)
+    # 用户自带的 AI 服务凭据。四项留空即沿用 backend/.env 中的系统默认配置，
+    # 因此「使用系统统一配置」与「每个人填自己的 Key」两种模式可以共存。
     api_key = Column(String(256), nullable=True, comment="用户自定义API Key")
+    api_base = Column(String(256), nullable=True, comment="用户自定义API地址（OpenAI兼容）")
+    llm_model = Column(String(128), nullable=True, comment="用户自定义对话模型名")
+    embedding_model = Column(String(128), nullable=True, comment="用户自定义向量模型名")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
     last_login = Column(DateTime, nullable=True)

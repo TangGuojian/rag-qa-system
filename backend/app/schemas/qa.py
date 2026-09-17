@@ -6,7 +6,8 @@ from datetime import datetime
 class AskRequest(BaseModel):
     question: str
     kb_ids: List[int]
-    session_id: str
+    # 多轮会话标识。不传时由服务端生成，便于直接调试接口（如 /docs 里试调用）
+    session_id: Optional[str] = None
 
 
 class SourceInfo(BaseModel):

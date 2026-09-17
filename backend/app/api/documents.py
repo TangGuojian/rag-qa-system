@@ -7,6 +7,8 @@ import uuid
 from app.db.mysql import get_db
 from app.db.chroma import get_collection
 from app.core.dependencies import get_current_user, require_admin
+from app.core.ai_config import AIConfig, for_user
+from app.core.errors import EmbeddingMismatchError, MissingApiKeyError
 from app.core.config import settings
 from app.models.document import Document, DocStatus, DocType
 from app.models.user import User
@@ -54,17 +56,32 @@ def upload_document(
     db.commit()
     db.refresh(doc)
 
+    ai = for_user(user)
+    if not ai.has_key:
+        return _fail(doc, db, (
+            "尚未配置 AI 服务 API Key，无法向量化文档。请先进入「个人设置」，"
+            "选择服务商并填写你自己的 API Key，保存后重新上传。"
+        ))
+
     try:
-        _parse_and_index(doc, db, user.api_key)
+        _parse_and_index(doc, db, ai)
+    except (MissingApiKeyError, EmbeddingMismatchError) as e:
+        return _fail(doc, db, str(e))
     except Exception as e:
-        doc.status = DocStatus.FAILED
-        doc.error_msg = str(e)
-        db.commit()
+        return _fail(doc, db, str(e))
 
-    return {"doc_id": doc.id, "status": doc.status.value}
+    return {"doc_id": doc.id, "status": doc.status.value, "chunk_count": doc.chunk_count}
 
 
-def _parse_and_index(doc: Document, db: Session, api_key: str | None = None):
+def _fail(doc: Document, db: Session, message: str) -> dict:
+    """把失败原因同时写进记录与响应，前端可以直接提示给使用者。"""
+    doc.status = DocStatus.FAILED
+    doc.error_msg = message
+    db.commit()
+    return {"doc_id": doc.id, "status": doc.status.value, "error_msg": message}
+
+
+def _parse_and_index(doc: Document, db: Session, ai: AIConfig | None = None):
     doc.status = DocStatus.PARSING
     db.commit()
 
@@ -82,7 +99,7 @@ def _parse_and_index(doc: Document, db: Session, api_key: str | None = None):
     doc.status = DocStatus.VECTORIZING
     db.commit()
 
-    embeddings = embed_texts(chunks, api_key)
+    embeddings = embed_texts(chunks, ai=ai)
 
     collection = get_collection(doc.kb_id)
     kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == doc.kb_id).first()
