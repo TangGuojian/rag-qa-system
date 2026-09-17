@@ -4,8 +4,7 @@
 
 > 面向的场景：企业内部制度、财政数据集等文档的问答查询——用户提问后，系统不仅给出答案，还会**标注每段回答来自哪份文档的哪一段原文**，解决大模型"胡说"无法核验的问题。
 
-<!-- CI 徽章：Actions 跑绿后取消注释 -->
-<!-- ![Tests](https://github.com/TangGuojian/rag-qa-system/actions/workflows/test.yml/badge.svg) -->
+![Tests](https://github.com/TangGuojian/rag-qa-system/actions/workflows/test.yml/badge.svg)
 
 ---
 
@@ -148,7 +147,7 @@ pytest -v
 
 - **API Key 目前明文存储在 MySQL**：生产环境应改为加密存储，或统一使用服务端密钥池，避免用户密钥泄露风险。
 - **`POST /api/auth/init` 为开发期初始化接口**：可无鉴权创建管理员账号。生产部署应通过环境变量注入初始密码，并限制该接口的调用来源。
-- **CI 中的外部依赖**：部分测试依赖 MySQL / Neo4j / LLM API，CI 环境未提供这些服务时会被跳过或失败。
+- **测试环境与生产数据库存在方言差异**：CI 测试用 SQLite 替代 MySQL（见 `tests/conftest.py`），SQLite 在类型约束、并发行为上与 MySQL 并不完全一致，因此测试通过不等于生产环境行为完全等价。
 
 ---
 
