@@ -7,7 +7,22 @@
           <el-button type="primary" size="small" @click="showCreateDialog = true">+ 新建知识库</el-button>
         </div>
       </template>
-      <el-table :data="kbList" size="small">
+      <!-- 空状态：第一次进入时知识库必然是空的，这里必须说清楚下一步是什么。
+           曾经只留一个空表格，使用者（包括面试官）会以为功能没跑起来。 -->
+      <div v-if="kbList.length === 0" class="empty-guide">
+        <div class="empty-title">还没有知识库</div>
+        <div class="empty-desc">
+          知识库是文档的容器——就像先要有文件夹，才能往里放文件。<br />
+          按顺序完成下面三步，即可进行第一次问答：
+        </div>
+        <el-steps :active="0" align-center finish-status="success" class="guide-steps">
+          <el-step title="新建知识库" description="起个名字，例如「公司制度」" />
+          <el-step title="上传文档" description="PDF / Word / Excel / TXT" />
+          <el-step title="开始提问" description="勾选知识库，答案附参考来源" />
+        </el-steps>
+        <el-button type="primary" size="small" @click="showCreateDialog = true">+ 新建知识库</el-button>
+      </div>
+      <el-table v-else :data="kbList" size="small">
         <el-table-column prop="name" label="名称" />
         <el-table-column prop="doc_count" label="文档数" />
         <el-table-column prop="chunk_count" label="向量数" />
@@ -312,3 +327,26 @@ async function deleteDoc(row) {
 
 onMounted(loadData)
 </script>
+
+<style scoped>
+/* 全部使用 Element Plus 主题变量，暗色/亮色主题下都能正常显示 */
+.empty-guide {
+  padding: 24px 12px 28px;
+  text-align: center;
+}
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.empty-desc {
+  margin: 10px 0 4px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--el-text-color-secondary);
+}
+.guide-steps {
+  max-width: 760px;
+  margin: 18px auto 20px;
+}
+</style>
