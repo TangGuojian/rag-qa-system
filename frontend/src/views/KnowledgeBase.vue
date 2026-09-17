@@ -73,9 +73,16 @@
     <el-dialog v-model="showUpload" title="上传文档" width="500px" :close-on-click-modal="false">
       <el-form>
         <el-form-item label="知识库">
-          <el-select v-model="uploadKbId" style="width:100%">
+          <el-select v-model="uploadKbId" style="width:100%"
+                     :placeholder="kbList.length ? '请选择知识库' : '暂无知识库，请先新建'">
             <el-option v-for="kb in kbList" :key="kb.id" :label="kb.name" :value="kb.id" />
           </el-select>
+          <div v-if="!kbList.length" style="font-size:12px;color:#e6a23c;margin-top:4px">
+            还没有知识库，
+            <el-button type="primary" text size="small" style="padding:0;vertical-align:baseline"
+                       @click="showUpload = false; showCreateDialog = true">点此新建</el-button>
+            后再上传
+          </div>
         </el-form-item>
         <el-form-item label="文件">
           <el-upload
@@ -100,14 +107,18 @@
       </div>
       <template #footer>
         <el-button @click="closeUpload">取消</el-button>
-        <el-button type="primary" @click="confirmUpload" :disabled="!uploadFiles.length || !uploadKbId || uploading">开始上传</el-button>
+        <el-tooltip :content="uploadDisabledReason" placement="top" :disabled="!uploadDisabledReason">
+          <span>
+            <el-button type="primary" @click="confirmUpload" :disabled="!!uploadDisabledReason">开始上传</el-button>
+          </span>
+        </el-tooltip>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { kbApi, docApi } from '../api'
 
@@ -126,6 +137,15 @@ const uploadRef = ref(null)
 const uploading = ref(false)
 const uploadProgress = ref(0)
 
+// 按钮为什么点不了，必须说清楚：否则「没有知识库」时下拉框是空的，
+// 使用者只会看到一个灰按钮，完全不知道下一步该干什么。
+const uploadDisabledReason = computed(() => {
+  if (uploading.value) return '正在上传解析中，请稍候'
+  if (!uploadKbId.value) return '请先选择要上传到的知识库'
+  if (!uploadFiles.value.length) return '请先选择文件'
+  return ''
+})
+
 function statusType(s) {
   return { pending: 'info', parsing: 'warning', vectorizing: 'warning', completed: 'success', failed: 'danger' }[s] || 'info'
 }
@@ -135,8 +155,9 @@ function statusLabel(s) {
   return labels[s] || s
 }
 
-function onFileChange(uploadFile) {
-  uploadFiles.value = uploadRef.value.uploadFiles
+function onFileChange(_file, files) {
+  // 优先用回调给出的文件数组；个别版本下该参数为空，再回落到组件内部数组。
+  uploadFiles.value = (files && files.length ? files : uploadRef.value?.uploadFiles) || []
 }
 
 async function loadData() {
