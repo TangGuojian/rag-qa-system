@@ -162,6 +162,16 @@ async function sendQuestion() {
       }),
     })
 
+    // HTTP 层报错（401/400/500 等）时响应体是 JSON 而不是 SSE 流
+    if (!resp.ok) {
+      let detail = '请求失败（HTTP ' + resp.status + '）'
+      try {
+        const err = await resp.json()
+        if (err?.detail) detail = err.detail
+      } catch { /* 忽略解析失败，用默认提示 */ }
+      throw new Error(detail)
+    }
+
     const reader = resp.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
@@ -194,7 +204,10 @@ async function sendQuestion() {
       }
     }
   } catch (e) {
-    ElMessage.error('回答生成失败: ' + (e.message || '未知错误'))
+    const reason = e.message || '未知错误'
+    ElMessage.error('回答生成失败: ' + reason)
+    // 一个字都没收到时，把原因写进气泡，避免留下一条空气泡让人摸不着头脑
+    if (!fullAnswer) fullAnswer = '⚠️ 回答生成失败：' + reason
   }
 
   streaming.value = false

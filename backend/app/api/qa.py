@@ -11,6 +11,7 @@ from app.models.user import User
 from app.models.history import QaHistory
 from app.schemas.qa import AskRequest, FeedbackRequest, QAResult, SourceInfo
 from app.rag.engine import answer_question, answer_question_stream
+from app.core.errors import humanize_error
 
 router = APIRouter()
 
@@ -19,12 +20,20 @@ NEED_KEY_MESSAGE = (
     "选择服务商（如阿里云百炼 / 硅基流动）并填写你自己的 API Key，保存后再提问。"
 )
 
+NEED_EMBEDDING_MESSAGE = (
+    "当前对话服务商不提供向量化接口（如 DeepSeek、Moonshot 只有对话接口），"
+    "无法在知识库中检索。请进入「个人设置 → 向量服务（可选）」，"
+    "单独配置一个提供向量模型的服务商（推荐硅基流动的 BAAI/bge-m3，有免费额度）。"
+)
+
 
 @router.post("/ask", response_model=QAResult)
 def ask_question(req: AskRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     ai = for_user(user)
     if not ai.has_key:
         raise HTTPException(status_code=400, detail=NEED_KEY_MESSAGE)
+    if not ai.supports_embedding:
+        raise HTTPException(status_code=400, detail=NEED_EMBEDDING_MESSAGE)
 
     session_id = req.session_id or uuid.uuid4().hex
 
@@ -36,7 +45,7 @@ def ask_question(req: AskRequest, db: Session = Depends(get_db), user: User = De
     except (MissingApiKeyError, EmbeddingMismatchError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"问答引擎错误: {str(e)}")
+        raise HTTPException(status_code=500, detail=humanize_error(e))
 
     record = QaHistory(
         user_id=user.id,
@@ -90,6 +99,11 @@ async def ask_question_stream(req: Request):
             yield sse({"token": "", "done": True, "error": NEED_KEY_MESSAGE})
             db.close()
             return
+        # 对话服务商没有向量化接口时，检索这一步必然 404，提前拦截并给出指引
+        if not ai.supports_embedding:
+            yield sse({"token": "", "done": True, "error": NEED_EMBEDDING_MESSAGE})
+            db.close()
+            return
 
         full_answer = ""
         sources = []
@@ -110,7 +124,7 @@ async def ask_question_stream(req: Request):
             db.close()
             return
         except Exception as e:
-            yield sse({"token": "", "done": True, "error": str(e)})
+            yield sse({"token": "", "done": True, "error": humanize_error(e)})
             db.close()
             return
 

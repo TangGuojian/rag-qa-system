@@ -50,7 +50,9 @@ class TestQAAPI:
             "session_id": "session_err",
         }, headers=admin_headers)
         assert resp.status_code == 500
-        assert "问答引擎错误" in resp.json()["detail"]
+        # 引擎异常会被 humanize_error 翻译成可读提示，并保留原始错误信息
+        assert "调用失败" in resp.json()["detail"]
+        assert "LLM API 错误" in resp.json()["detail"]
 
     def test_ask_question_no_auth(self, client, test_kb):
         resp = client.post("/api/v1/qa/ask", json={

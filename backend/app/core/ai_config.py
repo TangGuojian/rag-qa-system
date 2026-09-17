@@ -16,7 +16,7 @@
 也允许任何拿到代码的人填自己的 Key 独立运行，不必依赖他人额度。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from app.core.config import settings
 from app.core.providers import provider_for_base
@@ -118,10 +118,16 @@ class AIConfig:
 
 
 def for_user(user) -> AIConfig:
-    """从用户记录构造凭据；user 为 None 时返回纯系统默认配置。"""
+    """从用户记录构造凭据；user 为 None 时返回纯系统默认配置。
+
+    补充规则（向量回落）：使用者只配了对话服务（如 DeepSeek）而没单独配向量服务时，
+    如果对话服务商不提供向量化接口，而系统默认配置里恰好有一套可用的向量出口，
+    则向量请求自动回落到系统默认——避免提问/上传时收到一个看不懂的 404。
+    没有系统默认可用时保持原样，由 API 层给出明确的配置指引。
+    """
     if user is None:
         return AIConfig()
-    return AIConfig(
+    cfg = AIConfig(
         api_key=_clean(getattr(user, "api_key", None)),
         api_base=_clean(getattr(user, "api_base", None)),
         llm_model=_clean(getattr(user, "llm_model", None)),
@@ -129,6 +135,13 @@ def for_user(user) -> AIConfig:
         embedding_api_key=_clean(getattr(user, "embedding_api_key", None)),
         embedding_api_base=_clean(getattr(user, "embedding_api_base", None)),
     )
+    if not cfg.has_dedicated_embedding and not cfg.supports_embedding:
+        sys_base = settings.llm_api_base
+        sys_key = settings.embedding_api_key or settings.llm_api_key
+        sys_provider = provider_for_base(sys_base)
+        if sys_key and sys_provider and sys_provider.get("supports_embedding", True):
+            cfg = replace(cfg, embedding_api_key=sys_key, embedding_api_base=sys_base)
+    return cfg
 
 
 def from_api_key(api_key: str | None) -> AIConfig:
