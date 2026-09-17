@@ -107,6 +107,10 @@ const aiDesc = computed(() => {
   if (!aiStatus.value.supports_embedding) {
     return '当前服务商不提供向量接口，请在「向量服务（可选）」单独配置一个（如硅基流动 BAAI/bge-m3），否则无法上传文档'
   }
+  // 系统默认 Key 来自部署者，额度与他人共用；本项目提倡自带 Key（BYOK）
+  if (!aiStatus.value.uses_user_key) {
+    return '当前使用部署者的系统默认 Key；建议在「个人设置」配置自己的 Key，额度独立且不受他人影响'
+  }
   return '对话与向量服务均已就绪'
 })
 
