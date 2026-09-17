@@ -25,6 +25,20 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/init")
 def init_admin(db: Session = Depends(get_db)):
+    """创建首个管理员。
+
+    安全说明：该接口无需登录，且早先会明文回传默认密码，任何人都能抢先注册管理员。
+    现默认关闭，仅在 .env 显式设置 ALLOW_INIT_ADMIN=true 时可用，且不再回传密码
+    （密码固定为 run_demo.py 中的默认口令，登录后可自行修改）。
+    """
+    if not settings.allow_init_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "初始化接口已关闭。本地演示请在 .env 中设置 ALLOW_INIT_ADMIN=true 后重启，"
+                "或直接运行 `python run_demo.py`，它会自动创建管理员账号。"
+            ),
+        )
     admin = db.query(User).filter(User.role == UserRole.ADMIN).first()
     if admin:
         return {"message": "管理员已存在"}
@@ -36,4 +50,4 @@ def init_admin(db: Session = Depends(get_db)):
     )
     db.add(admin)
     db.commit()
-    return {"message": "管理员创建成功", "username": "admin", "password": "admin123"}
+    return {"message": "管理员创建成功", "username": "admin"}

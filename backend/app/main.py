@@ -32,6 +32,12 @@ app.include_router(api_router)
 
 @app.on_event("startup")
 def on_startup():
+    if settings.jwt_using_ephemeral_key:
+        logger.warning(
+            "未配置 JWT_SECRET_KEY，已改用本次启动随机生成的密钥："
+            "服务重启后登录态会失效，多进程部署时各 worker 令牌互不通用。"
+            "正式部署请在 .env 中显式设置 JWT_SECRET_KEY。"
+        )
     # 测试环境由测试用例自行建表（见 tests/conftest.py），
     # 此处跳过，避免在无外部依赖的 CI 环境中尝试连接数据库。
     if settings.env == "test":

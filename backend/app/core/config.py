@@ -1,6 +1,17 @@
+import secrets
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings
+
+
+def _ephemeral_jwt_key() -> str:
+    """未显式配置 JWT_SECRET_KEY 时，进程启动即生成一个随机密钥。
+
+    早先这里是一个写死的默认值，任何人拿到代码就能用该已知密钥伪造管理员令牌。
+    随机化的代价是重启后已签发的令牌会失效（本地演示可接受，生产必须显式配置）。
+    """
+    return secrets.token_urlsafe(32)
 
 # backend/ 目录（本文件位于 backend/app/core/config.py）
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -57,9 +68,23 @@ class Settings(BaseSettings):
     chromadb_port: int = 8000
 
     # ---------------- JWT ----------------
-    jwt_secret_key: str = "change-this-in-production"
+    # 未配置时自动随机生成（避免「已知默认密钥」导致令牌可被伪造）。
+    # 部署到多进程 / 长期环境时，务必在 .env 里显式设置 JWT_SECRET_KEY，
+    # 否则重启后所有登录态失效，且多 worker 之间令牌互不通用。
+    jwt_secret_key: str = Field(default_factory=_ephemeral_jwt_key)
     jwt_algorithm: str = "HS256"
     jwt_expire_hours: int = 24
+
+    # 是否开放 POST /auth/init（免登录创建管理员）。
+    # 历史上该接口无需任何鉴权且明文返回默认密码，属于越权风险，故默认关闭。
+    # 本地演示需要时，在 .env 中设置 ALLOW_INIT_ADMIN=true 显式开启。
+    allow_init_admin: bool = False
+
+    @property
+    def jwt_using_ephemeral_key(self) -> bool:
+        """当前使用的是随机密钥（即调用方没有显式配置 JWT_SECRET_KEY）。"""
+        fields_set = getattr(self, "model_fields_set", None) or set()
+        return "jwt_secret_key" not in fields_set
 
     # ---------------- AI 服务（系统默认值）----------------
     # 仅作为兜底：每个用户都可以在「个人设置」里填写自己的 Key、服务地址与模型，
