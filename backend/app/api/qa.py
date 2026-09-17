@@ -137,9 +137,13 @@ async def ask_question_stream(req: Request):
         )
         db.add(record)
         db.commit()
+        # 必须在 db.close() 之前取出主键：close 之后实例已脱离会话，
+        # 再访问 record.id 会抛 DetachedInstanceError，导致 done 事件发不出去
+        # （表现为：溯源为空、反馈拿不到 qa_id 而静默失败）
+        qa_id = record.id
         db.close()
 
-        yield sse({"token": "", "done": True, "sources": sources, "qa_id": record.id})
+        yield sse({"token": "", "done": True, "sources": sources, "qa_id": qa_id})
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

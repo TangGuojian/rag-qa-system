@@ -4,6 +4,7 @@ from app.db.chroma import get_collection
 from app.rag.embedding import embed_text
 from app.db.mysql import SessionLocal
 from app.models.document import Document
+from app.models.kb import KnowledgeBase
 from app.utils.text import extract_chinese_bigrams
 
 
@@ -38,6 +39,28 @@ class ChunkResult:
         self.kb_name = kb_name
         self.filename = filename
         self.score = score
+
+
+def _fill_kb_names(results: list[ChunkResult]) -> list[ChunkResult]:
+    """补全缺失的知识库名称。
+
+    早期版本写入向量库的元数据里没有 kb_name 字段，
+    这类历史索引在界面上会显示成「 / 文件名」。
+    这里按 kb_id 回查一次知识库表补上，避免重新索引全部文档。
+    """
+    if not any(not r.kb_name for r in results):
+        return results
+    db = SessionLocal()
+    try:
+        names = {kb.id: kb.name for kb in db.query(KnowledgeBase).all()}
+    except Exception:  # noqa: BLE001 - 名称只用于展示，查不到不影响检索
+        return results
+    finally:
+        db.close()
+    for r in results:
+        if not r.kb_name:
+            r.kb_name = names.get(r.kb_id, "")
+    return results
 
 
 def _keyword_search(question: str, kb_ids: list[int]) -> list[dict]:
@@ -144,7 +167,7 @@ def search_knowledge(
     if not results:
         keyword_hits = _keyword_content_search(question, kb_ids)
         if keyword_hits:
-            return keyword_hits
+            return _fill_kb_names(keyword_hits)
 
         keyword_hits = _keyword_search(question, kb_ids)
         if keyword_hits:
@@ -171,4 +194,4 @@ def search_knowledge(
                     continue
 
     results.sort(key=lambda r: r.score, reverse=True)
-    return results[:top_k]
+    return _fill_kb_names(results[:top_k])
