@@ -1,6 +1,22 @@
 import pytest
 import io
+from unittest.mock import MagicMock, patch
 from app.models.document import DocStatus
+
+
+@pytest.fixture(autouse=True)
+def mock_external_deps():
+    """文档上传接口是同步处理的：解析 -> 分块 -> 调外部 embedding 接口 -> 写入 ChromaDB。
+
+    测试必须屏蔽这两个外部依赖，否则：
+    - 没有 API Key 的环境（CI、他人机器）会让上传返回 status=failed；
+    - 有 API Key 时会真的消耗额度、并让测试结果依赖本地 .env 与网络。
+    屏蔽后用例只验证本项目的业务逻辑（状态流转、分块、元数据、分页筛选）。
+    """
+    fake_collection = MagicMock()
+    with patch("app.api.documents.embed_texts", return_value=[[0.1] * 1024]), \
+         patch("app.api.documents.get_collection", return_value=fake_collection):
+        yield fake_collection
 
 
 @pytest.fixture
