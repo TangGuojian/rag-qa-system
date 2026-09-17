@@ -71,6 +71,10 @@ def update_my_profile(req: UserProfileUpdate, db: Session = Depends(get_db), use
         user.llm_model = _normalize(req.llm_model)
     if "embedding_model" in req.model_fields_set:
         user.embedding_model = _normalize(req.embedding_model)
+    if "embedding_api_key" in req.model_fields_set:
+        user.embedding_api_key = _normalize(req.embedding_api_key)
+    if "embedding_api_base" in req.model_fields_set:
+        user.embedding_api_base = _normalize_base(req.embedding_api_base)
     db.commit()
     db.refresh(user)
     return UserResponse.model_validate(user).model_dump()

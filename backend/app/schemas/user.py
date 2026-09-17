@@ -31,11 +31,14 @@ class UserUpdate(BaseModel):
 
 class UserProfileUpdate(BaseModel):
     display_name: Optional[str] = None
-    # 以下四项留空表示沿用系统默认配置
+    # 以下各项留空表示沿用系统默认配置
     api_key: Optional[str] = None
     api_base: Optional[str] = None
     llm_model: Optional[str] = None
     embedding_model: Optional[str] = None
+    # 向量服务的独立出口，留空则与对话服务共用
+    embedding_api_key: Optional[str] = None
+    embedding_api_base: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -49,6 +52,8 @@ class UserResponse(BaseModel):
     api_base: Optional[str] = None
     llm_model: Optional[str] = None
     embedding_model: Optional[str] = None
+    embedding_api_key: Optional[str] = None
+    embedding_api_base: Optional[str] = None
     created_at: datetime
     last_login: Optional[datetime] = None
 

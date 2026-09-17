@@ -30,6 +30,10 @@ class User(Base):
     api_base = Column(String(256), nullable=True, comment="用户自定义API地址（OpenAI兼容）")
     llm_model = Column(String(128), nullable=True, comment="用户自定义对话模型名")
     embedding_model = Column(String(128), nullable=True, comment="用户自定义向量模型名")
+    # 向量服务可以单独指定。部分服务商（DeepSeek、Moonshot）只有对话接口，
+    # 若不给向量留独立出口，这类用户就完全无法建立知识库。
+    embedding_api_key = Column(String(256), nullable=True, comment="向量服务专用Key，留空则与对话共用")
+    embedding_api_base = Column(String(256), nullable=True, comment="向量服务专用地址，留空则与对话共用")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
     last_login = Column(DateTime, nullable=True)

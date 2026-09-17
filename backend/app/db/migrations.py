@@ -16,6 +16,8 @@ _ADDITIVE_MIGRATIONS: dict[str, list[tuple[str, str]]] = {
         ("api_base", "VARCHAR(256) NULL"),
         ("llm_model", "VARCHAR(128) NULL"),
         ("embedding_model", "VARCHAR(128) NULL"),
+        ("embedding_api_key", "VARCHAR(256) NULL"),
+        ("embedding_api_base", "VARCHAR(256) NULL"),
     ],
 }
 

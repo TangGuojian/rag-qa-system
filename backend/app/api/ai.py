@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from app.core.ai_config import AIConfig, for_user
 from app.core.dependencies import get_current_user
+from app.core.errors import humanize_error
 from app.core.providers import PROVIDER_PRESETS
 from app.models.user import User
 from app.rag.embedding import probe_embedding
@@ -27,6 +28,8 @@ class AIProbeRequest(BaseModel):
     api_base: Optional[str] = None
     llm_model: Optional[str] = None
     embedding_model: Optional[str] = None
+    embedding_api_key: Optional[str] = None
+    embedding_api_base: Optional[str] = None
 
 
 class ModelListRequest(BaseModel):
@@ -41,6 +44,12 @@ def _merge(user: User, req: AIProbeRequest) -> AIConfig:
         api_base=req.api_base if req.api_base is not None else saved.api_base,
         llm_model=req.llm_model if req.llm_model is not None else saved.llm_model,
         embedding_model=req.embedding_model if req.embedding_model is not None else saved.embedding_model,
+        embedding_api_key=(
+            req.embedding_api_key if req.embedding_api_key is not None else saved.embedding_api_key
+        ),
+        embedding_api_base=(
+            req.embedding_api_base if req.embedding_api_base is not None else saved.embedding_api_base
+        ),
     )
 
 
@@ -52,34 +61,8 @@ def _mask(key: str | None) -> str | None:
     return f"{key[:6]}***{key[-4:]}"
 
 
-def _humanize(exc: Exception) -> str:
-    """把 SDK 抛出的原始异常翻译成可执行的中文提示。
-
-    先按异常类型判断，再匹配文本。顺序很重要：如果只做文本匹配，
-    "unexpected keyword argument 'timeout'" 这类代码缺陷里的字样
-    会被误判成网络问题，把真正的 bug 藏起来。
-    """
-    name = type(exc).__name__
-    text = f"{name}: {exc}"
-    low = text.lower()
-
-    if name in ("TypeError", "AttributeError", "NameError", "ImportError", "KeyError"):
-        return f"服务内部错误（{name}）：{str(exc)[:150]}。这是一处代码缺陷，不是配置问题。"
-    if "APIConnectionError" in name or "ConnectTimeout" in name or "APITimeoutError" in name:
-        return "无法连接到该服务地址。请检查 API 地址是否写错、本机网络是否可达（境外服务通常需要代理）。"
-    if "401" in low or "invalid_api_key" in low or "incorrect api key" in low or "authentication" in low:
-        return "API Key 无效或已失效，请检查是否复制完整、是否与该服务商匹配。"
-    if "model_not_found" in low or "does not exist" in low or ("404" in low and "model" in low):
-        return "模型名不存在。请点「获取可用模型」从服务商返回的列表里选一个。"
-    if "429" in low or "rate limit" in low or "quota" in low:
-        return "请求过于频繁或额度不足，请稍后重试，或检查账户余额。"
-    if "insufficient" in low or "arrears" in low or "balance" in low:
-        return "账户余额不足，请先充值或更换服务商。"
-    if "timed out" in low or "ssl" in low:
-        return "连接超时。请检查本机网络是否可达该服务地址（境外服务通常需要代理）。"
-    if "not supported" in low or "unsupported" in low:
-        return "该服务商不支持这个接口（例如不提供向量化接口），请更换服务商或模型。"
-    return f"调用失败：{text[:180]}"
+# 错误翻译统一放在 core/errors.py，上传等其它链路复用同一套话术
+_humanize = humanize_error
 
 
 @router.get("/providers")
@@ -99,6 +82,10 @@ def ai_status(user: User = Depends(get_current_user)):
         "api_base": ai.resolved_api_base,
         "llm_model": ai.resolved_llm_model,
         "embedding_model": ai.resolved_embedding_model,
+        "embedding_api_base": ai.resolved_embedding_api_base,
+        "embedding_api_base_masked": _mask(ai.embedding_api_key),
+        "has_dedicated_embedding": ai.has_dedicated_embedding,
+        "supports_embedding": ai.supports_embedding,
         "api_base_overridden": bool(ai.api_base),
         "llm_model_overridden": bool(ai.llm_model),
         "embedding_model_overridden": bool(ai.embedding_model),

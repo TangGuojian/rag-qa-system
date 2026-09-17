@@ -54,3 +54,7 @@ chromadb_data/
 # 为了让使用者 clone 后不必安装 Node.js 就能直接打开界面，后端会直接托管该目录。
 # 重新构建后请一并提交：cd frontend && npm run build
 !frontend/dist/
+
+# 本仓库自身的克隆（例如把 GitHub 上的版本 clone 到项目目录里做对照测试）。
+# 它是嵌套的 git 仓库，git 只会存一个空指针，没有任何意义，必须排除。
+rag-qa-system/

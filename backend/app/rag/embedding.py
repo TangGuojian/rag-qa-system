@@ -15,7 +15,7 @@ def _make_client(ai: AIConfig, timeout: float | None = None) -> OpenAI:
         raise MissingApiKeyError()
     return OpenAI(
         api_key=api_key,
-        base_url=ai.resolved_api_base or None,
+        base_url=ai.resolved_embedding_api_base or None,
         timeout=timeout or DEFAULT_TIMEOUT,
     )
 

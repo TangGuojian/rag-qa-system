@@ -35,7 +35,12 @@
         <el-table-column prop="file_size" label="大小" />
         <el-table-column prop="status" label="状态">
           <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+            <el-tooltip v-if="row.error_msg" :content="row.error_msg" placement="top" :show-after="200">
+              <el-tag :type="statusType(row.status)" size="small" style="cursor:help">
+                {{ statusLabel(row.status) }} ?
+              </el-tag>
+            </el-tooltip>
+            <el-tag v-else :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="tags" label="标签" />
@@ -200,10 +205,13 @@ async function confirmUpload() {
 
   let success = 0
   let fail = 0
+  const failures = []
   const total = uploadFiles.value.length
 
   for (let i = 0; i < total; i++) {
-    const f = uploadFiles.value[i].raw || uploadFiles.value[i]
+    const item = uploadFiles.value[i]
+    const f = item.raw || item
+    const name = f.name || `文件${i + 1}`
     const formData = new FormData()
     formData.append('file', f)
     formData.append('kb_id', uploadKbId.value)
@@ -211,18 +219,44 @@ async function confirmUpload() {
       formData.append('tags', uploadTags.value.trim())
     }
     try {
-      await docApi.upload(formData)
-      success++
-    } catch {
+      // 注意：接口返回 201 只代表「请求被受理」，文档可能仍在索引中甚至已失败，
+      // 必须看响应体里的 status 才能判断真实结果。
+      const res = await docApi.upload(formData)
+      const data = res.data || {}
+      if (data.status === 'completed') {
+        success++
+      } else {
+        fail++
+        failures.push(`${name}：${data.error_msg || '未能完成索引'}`)
+      }
+    } catch (err) {
       fail++
+      const detail = err?.response?.data?.detail
+      failures.push(`${name}：${typeof detail === 'string' ? detail : '请求失败'}`)
     }
     uploadProgress.value = Math.round(((i + 1) / total) * 90) + 10
   }
 
   uploadProgress.value = 100
-  ElMessage.success(`上传完成：${success} 成功，${fail} 失败`)
   closeUpload()
   loadData()
+
+  if (fail === 0) {
+    ElMessage.success(`上传完成：${success} 个文档已索引`)
+  } else {
+    // 失败原因通常较长且需要复制排查，消息条一闪而过看不全，改用弹窗
+    ElMessageBox.alert(
+      `<div style="line-height:1.7">${failures.map(x => `• ${escapeHtml(x)}`).join('<br/>')}</div>`,
+      `上传完成：${success} 成功，${fail} 失败`,
+      { dangerouslyUseHTMLString: true, confirmButtonText: '我知道了' }
+    ).catch(() => {})
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ))
 }
 
 async function downloadDoc(row) {

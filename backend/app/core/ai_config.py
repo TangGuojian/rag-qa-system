@@ -19,6 +19,7 @@
 from dataclasses import dataclass
 
 from app.core.config import settings
+from app.core.providers import provider_for_base
 
 
 def _clean(value: str | None) -> str | None:
@@ -36,6 +37,9 @@ class AIConfig:
     api_base: str | None = None
     llm_model: str | None = None
     embedding_model: str | None = None
+    # 向量服务的独立出口：留空表示与对话服务共用同一套地址与 Key
+    embedding_api_key: str | None = None
+    embedding_api_base: str | None = None
 
     # ---------- 解析为最终生效值 ----------
     @property
@@ -51,12 +55,55 @@ class AIConfig:
         return self.embedding_model or settings.embedding_model
 
     @property
+    def resolved_embedding_api_base(self) -> str:
+        """向量请求实际发往的地址。
+
+        允许「对话用一个服务商、向量用另一个」，因为不少服务商只提供对话接口，
+        此时必须给向量单独配一个出口，否则知识库功能完全不可用。
+        """
+        return self.embedding_api_base or self.resolved_api_base
+
+    @property
     def resolved_llm_api_key(self) -> str:
         return self.api_key or settings.llm_api_key or settings.embedding_api_key or ""
 
     @property
     def resolved_embedding_api_key(self) -> str:
-        return self.api_key or settings.embedding_api_key or settings.llm_api_key or ""
+        return (
+            self.embedding_api_key
+            or self.api_key
+            or settings.embedding_api_key
+            or settings.llm_api_key
+            or ""
+        )
+
+    @property
+    def provider(self) -> dict | None:
+        """当前生效地址对应的服务商预设（未知服务商返回 None）。"""
+        return provider_for_base(self.resolved_api_base)
+
+    @property
+    def embedding_provider(self) -> dict | None:
+        """向量请求实际访问的服务商预设。"""
+        return provider_for_base(self.resolved_embedding_api_base)
+
+    @property
+    def has_dedicated_embedding(self) -> bool:
+        """是否为向量服务单独指定了地址或 Key。"""
+        return bool(self.embedding_api_base or self.embedding_api_key)
+
+    @property
+    def supports_embedding(self) -> bool:
+        """当前服务商是否提供向量化接口。
+
+        部分服务商（DeepSeek、Moonshot）只有对话接口。若不做这层判断，
+        上传文档时会在向量化阶段报一个看不懂的 404，使用者无法自行定位。
+        未知服务商（自建网关等）按「支持」处理，由实际调用结果来兜底。
+        """
+        p = self.embedding_provider
+        if p is None:
+            return True
+        return bool(p.get("supports_embedding", True))
 
     # ---------- 状态查询 ----------
     @property
@@ -79,6 +126,8 @@ def for_user(user) -> AIConfig:
         api_base=_clean(getattr(user, "api_base", None)),
         llm_model=_clean(getattr(user, "llm_model", None)),
         embedding_model=_clean(getattr(user, "embedding_model", None)),
+        embedding_api_key=_clean(getattr(user, "embedding_api_key", None)),
+        embedding_api_base=_clean(getattr(user, "embedding_api_base", None)),
     )
 
 

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status, Query
 from fastapi.responses import FileResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import os
@@ -8,7 +9,7 @@ from app.db.mysql import get_db
 from app.db.chroma import get_collection
 from app.core.dependencies import get_current_user, require_admin
 from app.core.ai_config import AIConfig, for_user
-from app.core.errors import EmbeddingMismatchError, MissingApiKeyError
+from app.core.errors import EmbeddingMismatchError, MissingApiKeyError, humanize_error
 from app.core.config import settings
 from app.models.document import Document, DocStatus, DocType
 from app.models.user import User
@@ -63,12 +64,24 @@ def upload_document(
             "选择服务商并填写你自己的 API Key，保存后重新上传。"
         ))
 
+    # 部分服务商只有对话接口（DeepSeek / Moonshot）。不提前拦住的话，
+    # 会一直走到向量化阶段才报一个看不懂的 404，使用者无法自行定位。
+    if not ai.supports_embedding:
+        label = (ai.embedding_provider or {}).get("label", "当前配置的服务商")
+        return _fail(doc, db, (
+            f"「{label}」不提供向量化接口，无法为文档建立索引。"
+            "RAG 的检索依赖向量，因此必须有一个向量模型。"
+            "请到「个人设置」中：换用提供向量模型的服务商"
+            "（阿里云百炼 / 硅基流动 / 智谱 / OpenAI），"
+            "或保留当前对话服务商、在「向量服务（可选）」里单独填一个向量服务商的 Key 与地址。"
+        ))
+
     try:
         _parse_and_index(doc, db, ai)
     except (MissingApiKeyError, EmbeddingMismatchError) as e:
         return _fail(doc, db, str(e))
     except Exception as e:
-        return _fail(doc, db, str(e))
+        return _fail(doc, db, humanize_error(e))
 
     return {"doc_id": doc.id, "status": doc.status.value, "chunk_count": doc.chunk_count}
 
@@ -78,7 +91,30 @@ def _fail(doc: Document, db: Session, message: str) -> dict:
     doc.status = DocStatus.FAILED
     doc.error_msg = message
     db.commit()
+    _refresh_kb_stats(doc.kb_id, db)
     return {"doc_id": doc.id, "status": doc.status.value, "error_msg": message}
+
+
+def _refresh_kb_stats(kb_id: int, db: Session) -> None:
+    """按文档表重算知识库的文档数与向量数。
+
+    这里不用「自增」是因为失败/重试/删除都会让自增漂移，
+    重算能保证列表里的数字永远和文档表一致（顺带自愈历史数据）。
+    """
+    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+    if not kb:
+        return
+    kb.doc_count = (
+        db.query(func.count(Document.id))
+        .filter(Document.kb_id == kb_id, Document.status == DocStatus.COMPLETED)
+        .scalar() or 0
+    )
+    kb.chunk_count = (
+        db.query(func.coalesce(func.sum(Document.chunk_count), 0))
+        .filter(Document.kb_id == kb_id, Document.status == DocStatus.COMPLETED)
+        .scalar() or 0
+    )
+    db.commit()
 
 
 def _parse_and_index(doc: Document, db: Session, ai: AIConfig | None = None):
@@ -94,6 +130,7 @@ def _parse_and_index(doc: Document, db: Session, ai: AIConfig | None = None):
         doc.status = DocStatus.COMPLETED
         doc.chunk_count = 0
         db.commit()
+        _refresh_kb_stats(doc.kb_id, db)
         return
 
     doc.status = DocStatus.VECTORIZING
@@ -115,9 +152,8 @@ def _parse_and_index(doc: Document, db: Session, ai: AIConfig | None = None):
 
     doc.status = DocStatus.COMPLETED
     doc.chunk_count = len(chunks)
-    if kb:
-        kb.chunk_count = (kb.chunk_count or 0) + len(chunks)
     db.commit()
+    _refresh_kb_stats(doc.kb_id, db)
 
 
 @router.get("", response_model=List[DocumentResponse])
@@ -161,8 +197,6 @@ def delete_document(doc_id: int, db: Session = Depends(get_db), user: User = Dep
         collection.delete(where={"doc_id": doc_id})
     except Exception:
         pass
-    kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == doc.kb_id).first()
-    if kb and doc.chunk_count:
-        kb.chunk_count = max(0, (kb.chunk_count or 0) - doc.chunk_count)
     db.delete(doc)
     db.commit()
+    _refresh_kb_stats(doc.kb_id, db)

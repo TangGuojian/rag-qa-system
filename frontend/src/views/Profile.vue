@@ -101,12 +101,53 @@
         </div>
       </el-form-item>
 
+      <el-divider content-position="left">向量服务（可选）</el-divider>
+
+      <el-alert
+        v-if="currentProvider && !currentProvider.supports_embedding"
+        type="warning"
+        show-icon
+        :closable="false"
+        style="margin-bottom:18px"
+        :title="`「${currentProvider.label}」只有对话接口`"
+        description="知识库的检索依赖向量，没有向量模型就无法上传文档。你可以在这里单独填一个向量服务商（推荐硅基流动，BAAI/bge-m3 有免费额度），对话仍走上面的服务商。"
+      />
+
+      <el-form-item label="向量服务 Key">
+        <el-input
+          v-model="form.embedding_api_key"
+          type="password"
+          show-password
+          placeholder="留空则与上方对话服务共用同一个 Key"
+          style="max-width:520px"
+        />
+      </el-form-item>
+
+      <el-form-item label="向量服务地址">
+        <el-input
+          v-model="form.embedding_api_base"
+          placeholder="留空则与上方对话服务共用同一个地址，例如 https://api.siliconflow.cn/v1"
+          style="max-width:520px"
+        />
+        <div style="color:#909399;font-size:12px;margin-top:4px">
+          仅当对话服务商不提供向量接口时才需要填。填了之后，向量化请求会发往这里，对话不受影响。
+        </div>
+      </el-form-item>
+
       <el-form-item label="当前生效">
         <div v-if="status" style="font-size:12px;color:#606266;line-height:1.9">
           <div>Key：{{ status.api_key_masked || '未配置' }}</div>
           <div>地址：{{ status.api_base || '-' }}</div>
           <div>对话模型：{{ status.llm_model || '-' }}</div>
-          <div>向量模型：{{ status.embedding_model || '-' }}</div>
+          <div>
+            向量模型：{{ status.embedding_model || '-' }}
+            <span v-if="status.has_dedicated_embedding" style="color:#67c23a">
+              （走独立向量服务 {{ status.embedding_api_base }}）
+            </span>
+          </div>
+          <div v-if="status.supports_embedding === false" style="color:#e6a23c">
+            当前向量服务不支持向量化，上传文档会失败。
+          </div>
         </div>
       </el-form-item>
 
@@ -244,6 +285,8 @@ async function saveProfile() {
       api_base: form.value.api_base || null,
       llm_model: form.value.llm_model || null,
       embedding_model: form.value.embedding_model || null,
+      embedding_api_key: form.value.embedding_api_key || null,
+      embedding_api_base: form.value.embedding_api_base || null,
     })
     ElMessage.success('保存成功')
     await loadStatus()
@@ -263,6 +306,8 @@ async function testConnection() {
       api_base: form.value.api_base || null,
       llm_model: form.value.llm_model || null,
       embedding_model: form.value.embedding_model || null,
+      embedding_api_key: form.value.embedding_api_key || null,
+      embedding_api_base: form.value.embedding_api_base || null,
     })
     testResult.value = res.data
     if (res.data.ok) {

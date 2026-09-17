@@ -92,3 +92,21 @@ PROVIDER_PRESETS: list[dict] = [
 ]
 
 PROVIDER_BY_ID = {p["id"]: p for p in PROVIDER_PRESETS}
+
+
+def provider_for_base(api_base: str | None) -> dict | None:
+    """按 API 地址反查服务商预设。
+
+    使用者可能手动改过地址（比如换了区域、走了自建网关），
+    所以这里只做前缀匹配，匹配不到就返回 None 表示「未知服务商」。
+    """
+    if not api_base:
+        return None
+    base = api_base.strip().rstrip("/").lower()
+    if not base:
+        return None
+    for p in PROVIDER_PRESETS:
+        pb = (p.get("api_base") or "").strip().rstrip("/").lower()
+        if pb and (base == pb or base.startswith(pb + "/")):
+            return p
+    return None

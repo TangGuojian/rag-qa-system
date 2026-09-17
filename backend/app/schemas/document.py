@@ -12,6 +12,7 @@ class DocumentResponse(BaseModel):
     status: str
     tags: Optional[str] = None
     chunk_count: int = 0
+    error_msg: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
